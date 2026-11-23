@@ -49,7 +49,7 @@ if(GRMG_BUILD_PLUGIN)
 
     set(PROJECT_VENDOR "InnerMost47")
     # macOS also gets an Audio Unit (needed by Logic Pro / GarageBand)
-    set(GRMG_FORMATS ${GRMG_FORMATS})
+    set(GRMG_FORMATS VST3 Standalone)
     if(APPLE)
         list(APPEND GRMG_FORMATS AU)
     endif()
