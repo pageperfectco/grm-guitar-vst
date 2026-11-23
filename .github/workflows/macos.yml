@@ -39,11 +39,13 @@ jobs:
 
       - name: Collect, ad-hoc sign and package
         run: |
-          ART=build/GRMGuitar_artefacts/Release
+          find build -maxdepth 6 -name "GRM Guitar.*" -prune -print
           mkdir -p dist
-          cp -R "$ART/VST3/GRM Guitar.vst3" dist/
-          cp -R "$ART/AU/GRM Guitar.component" dist/
-          cp -R "$ART/Standalone/GRM Guitar.app" dist/
+          for ext in vst3 component app; do
+            B=$(find build -name "GRM Guitar.$ext" -type d -prune | grep -v "/obj" | head -1)
+            test -n "$B" || { echo "missing GRM Guitar.$ext"; exit 1; }
+            cp -R "$B" dist/
+          done
           for b in dist/*; do codesign --force --deep --sign - "$b"; done
           lipo -info "dist/GRM Guitar.vst3/Contents/MacOS/GRM Guitar"
           cp mac/INSTALL-MAC.txt dist/
