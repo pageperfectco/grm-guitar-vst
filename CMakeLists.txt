@@ -1,6 +1,12 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright (C) 2026 Anthony Charretier
 cmake_minimum_required(VERSION 3.22)
+if(CMAKE_HOST_APPLE)
+    set(CMAKE_OSX_DEPLOYMENT_TARGET "11.0" CACHE STRING "Minimum macOS version")
+    if(NOT CMAKE_OSX_ARCHITECTURES)
+        set(CMAKE_OSX_ARCHITECTURES "arm64;x86_64" CACHE STRING "Universal binary")
+    endif()
+endif()
 project(GRMGuitar VERSION 0.3.7 LANGUAGES C CXX)
 
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
@@ -42,13 +48,19 @@ if(GRMG_BUILD_PLUGIN)
     FetchContent_MakeAvailable(JUCE)
 
     set(PROJECT_VENDOR "InnerMost47")
+    # macOS also gets an Audio Unit (needed by Logic Pro / GarageBand)
+    set(GRMG_FORMATS ${GRMG_FORMATS})
+    if(APPLE)
+        list(APPEND GRMG_FORMATS AU)
+    endif()
     juce_add_plugin(GRMGuitar
         COMPANY_NAME ${PROJECT_VENDOR}
         BUNDLE_ID "com.innermost47.grm-guitar"
         PLUGIN_MANUFACTURER_CODE Grmc
         PLUGIN_CODE Grmg
-        FORMATS VST3 Standalone
+        FORMATS ${GRMG_FORMATS}
         PRODUCT_NAME "GRM Guitar"
+        AU_MAIN_TYPE kAudioUnitType_MusicDevice
         IS_SYNTH TRUE
         NEEDS_MIDI_INPUT TRUE
         NEEDS_MIDI_OUTPUT FALSE
@@ -84,7 +96,9 @@ if(GRMG_BUILD_PLUGIN)
             >
         >)
 
-    if(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64")
+    # x86-64-v3 flags are skipped on Apple: macOS builds are universal (arm64 + x86_64)
+    # and -march=x86-64-v3 would break the arm64 slice.
+    if(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64" AND NOT APPLE)
         if(NOT GRMG_PORTABLE_CPU)
             target_compile_options(GRMGuitar PRIVATE
                 $<$<CXX_COMPILER_ID:GNU,Clang>:

@@ -1,0 +1,79 @@
+name: macOS build
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  macos:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure (universal arm64 + x86_64)
+        run: cmake -B build -G Xcode -DGRMG_BUILD_TESTS=ON
+
+      - name: Build
+        run: cmake --build build --config Release -- -quiet
+
+      - name: Core tests
+        run: ctest --test-dir build -C Release --output-on-failure
+
+      - name: Plugin host test (renders a WAV)
+        run: |
+          BIN=$(find build -type f -perm -111 -name plugin_host_test | head -1)
+          "$BIN" "$PWD/grm-guitar-macos-test.wav"
+
+      - name: CPU test on Apple Silicon
+        continue-on-error: true
+        run: |
+          BIN=$(find build -type f -perm -111 -name plugin_cpu_test | head -1)
+          "$BIN" 1 | tee cpu.txt
+          "$BIN" 4 | tee -a cpu.txt
+
+      - name: Collect, ad-hoc sign and package
+        run: |
+          ART=build/GRMGuitar_artefacts/Release
+          mkdir -p dist
+          cp -R "$ART/VST3/GRM Guitar.vst3" dist/
+          cp -R "$ART/AU/GRM Guitar.component" dist/
+          cp -R "$ART/Standalone/GRM Guitar.app" dist/
+          for b in dist/*; do codesign --force --deep --sign - "$b"; done
+          lipo -info "dist/GRM Guitar.vst3/Contents/MacOS/GRM Guitar"
+          cp mac/INSTALL-MAC.txt dist/
+          (cd dist && ditto -c -k --keepParent . ../GRM-Guitar-macos-universal.zip)
+
+      - name: Validate AU
+        continue-on-error: true
+        run: |
+          mkdir -p ~/Library/Audio/Plug-Ins/Components
+          cp -R "dist/GRM Guitar.component" ~/Library/Audio/Plug-Ins/Components/
+          killall -9 AudioComponentRegistrar || true
+          auval -v aumu Grmg Grmc | tail -40
+
+      - name: Validate VST3 with pluginval
+        continue-on-error: true
+        run: |
+          curl -sL -o pv.zip https://github.com/Tracktion/pluginval/releases/latest/download/pluginval_macOS.zip
+          unzip -q pv.zip
+          ./pluginval.app/Contents/MacOS/pluginval --strictness-level 5 --skip-gui-tests --validate "dist/GRM Guitar.vst3"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: GRM-Guitar-macos-universal
+          path: |
+            GRM-Guitar-macos-universal.zip
+            grm-guitar-macos-test.wav
+            cpu.txt
+
+      - name: Publish release asset
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "${GITHUB_REF_NAME}-mac" GRM-Guitar-macos-universal.zip --title "${GITHUB_REF_NAME} (macOS)" --notes-file mac/INSTALL-MAC.txt

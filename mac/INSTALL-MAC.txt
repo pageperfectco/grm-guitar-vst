@@ -1,0 +1,15 @@
+GRM Guitar for macOS (universal: Apple Silicon + Intel, macOS 11+)
+
+Install
+  VST3:        copy "GRM Guitar.vst3"      to ~/Library/Audio/Plug-Ins/VST3/
+  AU (Logic):  copy "GRM Guitar.component" to ~/Library/Audio/Plug-Ins/Components/
+  Standalone:  copy "GRM Guitar.app"       to /Applications/
+
+The builds are ad-hoc signed, not notarized by Apple, so macOS blocks them on
+first launch. After copying, run once in Terminal:
+
+  xattr -dr com.apple.quarantine ~/Library/Audio/Plug-Ins/VST3/"GRM Guitar.vst3"
+  xattr -dr com.apple.quarantine ~/Library/Audio/Plug-Ins/Components/"GRM Guitar.component"
+  xattr -dr com.apple.quarantine /Applications/"GRM Guitar.app"
+
+Then restart your DAW (for Logic, it rescans Audio Units on launch).
